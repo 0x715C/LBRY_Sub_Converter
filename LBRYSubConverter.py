@@ -6,50 +6,52 @@ import pkgutil
 
 from bs4 import BeautifulSoup
 
-# Opening the subscription_manager file
-fileToOpen = 'subscription_manager'
+fileToOpen = 'subscriptions.json'
 saveFileName = 'LBRY_Subscriptions.txt'
+
+# Opening the subscription_manager file
+if os.path.exists(fileToOpen):
+    youtube_subscriptions = open(fileToOpen,'r')
+else:
+    print("Please provide subscriptions.json")
+    exit()
 
 if os.path.exists(saveFileName):
     append_write = 'a'
 else:
     append_write = 'w'
 writeLbrySubs = open(saveFileName,append_write)
-with open(fileToOpen) as f:
-    data = f.read()
 
-# Loading paraser
-soup = BeautifulSoup(data, "lxml")
+# Loading parser
+jsonparser = json.loads(youtube_subscriptions.read())
 
-ids = []
-for node in soup.find_all('outline'):
-    url = node.get('xmlurl')
-    if url:
-        _, channel_id = url.split('=')
-        ids.append(channel_id)
+# Close youtube json
+youtube_subscriptions.close()
 
-newids = ','.join(ids)
-print(newids)
+youtube_subsciption_ids_list = []
+
+# Extract youtube channel Ids
+for channel in jsonparser:
+        youtube_subsciption_ids_list.append(channel["snippet"]["resourceId"]["channelId"])
+
+# Convert list to string
+youtube_subsciption_ids = ','.join(youtube_subsciption_ids_list)
+
 # Create API Call based on list of extracted channel_ids
-resp = requests.get("https://api.lbry.com/yt/resolve?channel_ids={"+newids+"}")
-#url= f'https://api.lbry.com/yt/resolve?channel_ids={'+newids+'}'
-#x = requests.get(url)
-print(resp.text)
-parsed_json = json.loads(resp.text)
-datas = parsed_json["data"]
-channels = datas["channels"]
-print ("channels %s" % json.dumps(channels))
+resp = requests.get("https://api.lbry.com/yt/resolve?channel_ids={"+youtube_subsciption_ids+"}")
 
-for tempchannels in channels:
-    if not channels[tempchannels] is None :
-        print ("lbry://%s" % channels[tempchannels])
-        writeLbrySubs.write("lbry://"+channels[tempchannels] + '\n')
-        
-writeLbrySubs.close()
+# extract lbry channel fields from json
+channels = (json.loads(resp.text))["data"]["channels"]
+
+# loop over channels, and write if key is not 'None'. I.e it exists on lbry
 count = 0
-
-with open(saveFileName, 'r') as f:
-    for line in f:
+for channel in channels:
+    if not channels[channel] is None :
+        print ("lbry://%s" % channels[channel])
+        writeLbrySubs.write("lbry://"+channels[channel] + '\n')
         count += 1
-        
+
+writeLbrySubs.close()
+
+
 print ("Total number of YouTube channels are availible on LBRY: %s" % count)
